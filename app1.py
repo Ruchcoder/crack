@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
-from scipy.ndimage import gaussian_filter
 
 st.title("AI Infrastructure Crack Detection System")
 st.write("Upload a pipeline or concrete surface image to detect cracks.")
@@ -20,12 +19,17 @@ if uploaded_file is not None:
     # Convert to numpy array
     img_array = np.array(gray_enhanced, dtype=float)
 
-    # Smooth image to remove noise
-    smoothed = gaussian_filter(img_array, sigma=1)
+    # Smooth image manually using simple average filter
+    kernel_size = 3
+    padded = np.pad(img_array, pad_width=kernel_size//2, mode='edge')
+    smoothed = np.zeros_like(img_array)
+    for i in range(img_array.shape[0]):
+        for j in range(img_array.shape[1]):
+            smoothed[i, j] = np.mean(padded[i:i+kernel_size, j:j+kernel_size])
 
-    # Subtract smoothed image to detect edges (like local contrast)
+    # Subtract smoothed image to get local contrast (like edge detection)
     edges = img_array - smoothed
-    edges[edges < 0] = 0  # remove negative values
+    edges[edges < 0] = 0
 
     # Threshold based on percentile
     threshold = np.percentile(edges, 95)
@@ -37,7 +41,6 @@ if uploaded_file is not None:
     draw = ImageDraw.Draw(image)
 
     if crack_pixels > crack_pixel_threshold:
-        # Draw solid red lines for continuous segments
         height, width = edge_binary.shape
         for y in range(height):
             x_positions = np.where(edge_binary[y, :])[0]
