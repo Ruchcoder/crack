@@ -25,13 +25,23 @@ if uploaded_file is not None:
     draw = ImageDraw.Draw(image)
 
     if crack_pixels > crack_pixel_threshold:
-        # Draw smooth red lines row by row
         height, width = edge_binary.shape
         for y in range(height):
             x_positions = np.where(edge_binary[y, :])[0]
-            if len(x_positions) > 1:
-                # Draw one line connecting the first and last detected pixel in this row
-                draw.line((x_positions[0], y, x_positions[-1], y), fill="red", width=2)
+            if len(x_positions) > 0:
+                # Find continuous segments
+                start = x_positions[0]
+                prev = x_positions[0]
+                for x in x_positions[1:]:
+                    if x == prev + 1:
+                        prev = x
+                    else:
+                        # Draw line for previous segment
+                        draw.line((start, y, prev, y), fill="red", width=2)
+                        start = x
+                        prev = x
+                # Draw the last segment
+                draw.line((start, y, prev, y), fill="red", width=2)
 
         # Determine severity
         severity = "Low"
