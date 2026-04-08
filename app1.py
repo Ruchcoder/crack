@@ -3,8 +3,8 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("Phone-Friendly Crack/Openings Detector")
-st.write("Highlights only real openings on pipes or concrete surfaces without external dependencies.")
+st.title("Phone-Friendly Crack/Openings Detector with Severity")
+st.write("Highlights real openings on pipes/concrete surfaces and shows severity level.")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
@@ -33,6 +33,7 @@ if uploaded_file is not None:
     crack_mask = np.zeros_like(edge_binary, dtype=bool)
     min_region_size = 20  # minimum pixels for a real opening
     openings = []  # to store regions
+    opening_sizes = []  # width of each opening for severity
 
     def flood_fill(y, x):
         stack = [(y, x)]
@@ -45,7 +46,6 @@ if uploaded_file is not None:
                 continue
             visited[cy, cx] = True
             region_pixels.append((cy, cx))
-            # Check 4 neighbors
             stack.extend([(cy-1, cx), (cy+1, cx), (cy, cx-1), (cy, cx+1)])
         return region_pixels
 
@@ -56,6 +56,10 @@ if uploaded_file is not None:
                 pixels = flood_fill(y, x)
                 if len(pixels) >= min_region_size:
                     openings.append(pixels)
+                    ys = [p[0] for p in pixels]
+                    xs = [p[1] for p in pixels]
+                    opening_width = max(xs) - min(xs) + 1
+                    opening_sizes.append(opening_width)
                     for py, px in pixels:
                         crack_mask[py, px] = True
 
@@ -82,15 +86,31 @@ if uploaded_file is not None:
         st.subheader("Detected Openings Overlay")
         st.image(image_resized, use_container_width=True)
 
+        # Determine severity based on largest opening width
+        if opening_sizes:
+            max_width_opening = max(opening_sizes)
+            if max_width_opening < 50:
+                severity = "Low"
+            elif max_width_opening < 150:
+                severity = "Moderate"
+            else:
+                severity = "High"
+        else:
+            severity = "Low"
+
         # Inspection Report
         st.subheader("Inspection Report")
         st.success("True Crack/Openings Detected")
-        st.write("Recommended Action: Maintenance inspection and repair required.")
+        st.write(f"Total Openings Detected: {len(openings)}")
+        st.write(f"Total Opening Pixel Count: {crack_pixels}")
+        st.write(f"Severity Level: {severity}")
+        st.write("Recommended Action: Maintenance inspection and repair if required.")
 
     else:
         st.subheader("Inspection Result")
         st.info("No True Crack/Openings Detected")
         st.write(f"Total Opening Pixel Count: {crack_pixels}")
+        st.write("Severity Level: None")
 
     # Download processed image
     buffer = io.BytesIO()
