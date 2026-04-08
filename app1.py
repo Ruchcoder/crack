@@ -19,17 +19,19 @@ if uploaded_file is not None:
     threshold_pixel = 60
     edge_binary = edge_array > threshold_pixel
 
-    # Count crack pixels
     crack_pixels = np.sum(edge_binary)
-    crack_pixel_threshold = 2000  # minimum pixels to consider a real crack
+    crack_pixel_threshold = 2000  # min pixels to consider a real crack
 
     draw = ImageDraw.Draw(image)
 
     if crack_pixels > crack_pixel_threshold:
-        # Draw solid red lines along crack pixels
-        ys, xs = np.where(edge_binary)
-        for y, x in zip(ys, xs):
-            draw.line((x, y, x+1, y+1), fill="red", width=2)
+        # Draw smooth red lines row by row
+        height, width = edge_binary.shape
+        for y in range(height):
+            x_positions = np.where(edge_binary[y, :])[0]
+            if len(x_positions) > 1:
+                # Draw one line connecting the first and last detected pixel in this row
+                draw.line((x_positions[0], y, x_positions[-1], y), fill="red", width=2)
 
         # Determine severity
         severity = "Low"
