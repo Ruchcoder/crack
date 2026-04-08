@@ -10,24 +10,33 @@ uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
-    gray = image.convert("L")
+
+    # Resize for faster mobile processing
+    max_width = 600
+    w_percent = max_width / float(image.width)
+    new_height = int(float(image.height) * w_percent)
+    image_resized = image.resize((max_width, new_height))
+
+    gray = image_resized.convert("L")
 
     # Enhance contrast
     enhancer = ImageEnhance.Contrast(gray)
-    gray_enhanced = enhancer.enhance(2.0)  # increase contrast
+    gray_enhanced = enhancer.enhance(2.0)
 
     # Convert to numpy array
     img_array = np.array(gray_enhanced, dtype=float)
 
-    # Smooth image manually using simple average filter
+    # Simple smoothing using 3x3 average filter (vectorized)
     kernel_size = 3
-    padded = np.pad(img_array, pad_width=kernel_size//2, mode='edge')
-    smoothed = np.zeros_like(img_array)
-    for i in range(img_array.shape[0]):
-        for j in range(img_array.shape[1]):
-            smoothed[i, j] = np.mean(padded[i:i+kernel_size, j:j+kernel_size])
+    pad = kernel_size // 2
+    padded = np.pad(img_array, pad, mode='edge')
+    smoothed = (
+        padded[:-2, :-2] + padded[:-2, 1:-1] + padded[:-2, 2:] +
+        padded[1:-1, :-2] + padded[1:-1, 1:-1] + padded[1:-1, 2:] +
+        padded[2:, :-2] + padded[2:, 1:-1] + padded[2:, 2:]
+    ) / 9.0
 
-    # Subtract smoothed image to get local contrast (like edge detection)
+    # Subtract smoothed image to get local contrast
     edges = img_array - smoothed
     edges[edges < 0] = 0
 
@@ -38,7 +47,7 @@ if uploaded_file is not None:
     crack_pixels = np.sum(edge_binary)
     crack_pixel_threshold = 500  # smaller for subtle cracks
 
-    draw = ImageDraw.Draw(image)
+    draw = ImageDraw.Draw(image_resized)
 
     if crack_pixels > crack_pixel_threshold:
         height, width = edge_binary.shape
@@ -56,7 +65,6 @@ if uploaded_file is not None:
                         prev = x
                 draw.line((start, y, prev, y), fill="red", width=2)
 
-        # Determine severity
         severity = "Low"
         if crack_pixels > 3000:
             severity = "Moderate"
@@ -64,30 +72,22 @@ if uploaded_file is not None:
             severity = "Severe"
 
         st.subheader("Detected Crack Overlay")
-        st.image(image, use_container_width=True)
-
+        st.image(image_resized, use_container_width=True)
         st.subheader("Inspection Result")
         st.success("Surface Crack Detected")
         st.write("Severity Level:", severity)
         st.write("Crack Pixel Count:", crack_pixels)
-
-        st.subheader("Inspection Report")
-        st.write("""
-Defect Type: Surface Crack  
-Structure: Pipeline / Concrete Surface  
-Action: Maintenance Inspection Recommended
-""")
     else:
         st.subheader("Inspection Result")
         st.info("No Crack Detected on Surface")
         st.write("Crack Pixel Count:", crack_pixels)
 
-    # Download processed image
+    # Download full-size processed image
     buffer = io.BytesIO()
-    image.save(buffer, format="PNG")
+    image.save(buffer, format="PNG")  # full resolution
     buffer.seek(0)
     st.download_button(
-        label="Download Processed Image",
+        label="Download Full-Resolution Processed Image",
         data=buffer,
         file_name="crack_detection_result.png",
         mime="image/png"
