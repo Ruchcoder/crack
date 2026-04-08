@@ -3,17 +3,10 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("Crack/Openings Detector with Real-World Measurement")
-st.write("Snap a picture and detect true openings, with approximate size in cm using a reference object.")
+st.title("Infrastructure Crack Detector System")
+st.write("Highlights real openings on pipes/concrete surfaces and shows severity level.")
 
-# Camera input
-uploaded_file = st.camera_input("Take a picture of the pipe or concrete surface")
-
-# Reference object width input
-ref_width_cm = st.number_input("Enter the width of a reference object in the photo (cm)", min_value=0.1, value=2.0, step=0.1)
-
-# Manual input for reference object in pixels (draw rectangle or approximate)
-ref_pixels = st.number_input("Enter the reference object width in pixels (approx.)", min_value=1, value=100, step=1)
+uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
@@ -30,15 +23,17 @@ if uploaded_file is not None:
     # Edge detection
     edges = gray_enhanced.filter(ImageFilter.FIND_EDGES)
     edge_array = np.array(edges)
+
+    # Threshold strong edges
     threshold = np.percentile(edge_array, 90)
     edge_binary = edge_array > threshold
 
-    # Flood fill to find openings
+    # Flood fill to find connected regions (openings)
     visited = np.zeros_like(edge_binary, dtype=bool)
     crack_mask = np.zeros_like(edge_binary, dtype=bool)
-    min_region_size = 20
-    openings = []
-    opening_sizes_pixels = []
+    min_region_size = 20  # minimum pixels for a real opening
+    openings = []  # to store regions
+    opening_sizes = []  # width of each opening for severity
 
     def flood_fill(y, x):
         stack = [(y, x)]
@@ -63,8 +58,8 @@ if uploaded_file is not None:
                     openings.append(pixels)
                     ys = [p[0] for p in pixels]
                     xs = [p[1] for p in pixels]
-                    opening_width_px = max(xs) - min(xs) + 1
-                    opening_sizes_pixels.append(opening_width_px)
+                    opening_width = max(xs) - min(xs) + 1
+                    opening_sizes.append(opening_width)
                     for py, px in pixels:
                         crack_mask[py, px] = True
 
@@ -72,11 +67,8 @@ if uploaded_file is not None:
     crack_pixel_threshold = 200
     draw = ImageDraw.Draw(image_resized)
 
-    # Calculate pixels per cm
-    pixels_per_cm = ref_pixels / ref_width_cm if ref_width_cm > 0 else 1
-
     if crack_pixels > crack_pixel_threshold:
-        # Draw openings
+        # Draw solid red lines along detected openings
         for y in range(height):
             x_positions = np.where(crack_mask[y, :])[0]
             if len(x_positions) > 0:
@@ -91,28 +83,27 @@ if uploaded_file is not None:
                         prev = x
                 draw.line((start, y, prev, y), fill="red", width=3)
 
-        # Convert largest opening to cm
-        max_opening_px = max(opening_sizes_pixels) if opening_sizes_pixels else 0
-        max_opening_cm = max_opening_px / pixels_per_cm
-
-        # Determine severity
-        if max_opening_cm < 1:
-            severity = "Low"
-        elif max_opening_cm < 3:
-            severity = "Moderate"
-        else:
-            severity = "High"
-
         st.subheader("Detected Openings Overlay")
         st.image(image_resized, use_container_width=True)
 
+        # Determine severity based on largest opening width
+        if opening_sizes:
+            max_width_opening = max(opening_sizes)
+            if max_width_opening < 50:
+                severity = "Low"
+            elif max_width_opening < 150:
+                severity = "Moderate"
+            else:
+                severity = "High"
+        else:
+            severity = "Low"
+
+        # Inspection Report
         st.subheader("Inspection Report")
         st.success("True Crack/Openings Detected")
-        st.write(f"Total Openings Detected: {len(openings)}")
-        st.write(f"Total Opening Pixel Count: {crack_pixels}")
-        st.write(f"Largest Opening Size: {max_opening_cm:.2f} cm")
         st.write(f"Severity Level: {severity}")
         st.write("Recommended Action: Maintenance inspection and repair if required.")
+
     else:
         st.subheader("Inspection Result")
         st.info("No True Crack/Openings Detected")
@@ -126,6 +117,6 @@ if uploaded_file is not None:
     st.download_button(
         label="Download Processed Image",
         data=buffer,
-        file_name="opening_detection_camera_measurement.png",
+        file_name="phone_friendly_opening_detection.png",
         mime="image/png"
     )
