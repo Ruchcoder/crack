@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("Phone-Friendly Crack/Openings Detector with Severity")
+st.title("Infrastructure Crack/Openings Detector System")
 st.write("Highlights real openings on pipes/concrete surfaces and shows severity level.")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
@@ -101,8 +101,6 @@ if uploaded_file is not None:
         # Inspection Report
         st.subheader("Inspection Report")
         st.success("True Crack/Openings Detected")
-        st.write(f"Total Openings Detected: {len(openings)}")
-        st.write(f"Total Opening Pixel Count: {crack_pixels}")
         st.write(f"Severity Level: {severity}")
         st.write("Recommended Action: Maintenance inspection and repair if required.")
 
