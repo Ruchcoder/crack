@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw
 import io
 
-st.title("AI Infrastructure Defect Detection System")
+st.title("Crack Defect Detection System")
 st.write("Upload an image of a pipeline or concrete surface to detect cracks.")
 
 uploaded_file = st.file_uploader("Upload Inspection Image", type=["jpg","png","jpeg"])
