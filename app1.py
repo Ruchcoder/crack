@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("Phone-Friendly Crack/Openings Detector")
+st.title("Infrastructure Crack Detection System")
 st.write("Highlights only real openings on pipes or concrete surfaces without external dependencies.")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
@@ -28,10 +28,11 @@ if uploaded_file is not None:
     threshold = np.percentile(edge_array, 90)
     edge_binary = edge_array > threshold
 
-    # Simple connected region detection using flood fill
+    # Flood fill to find connected regions (openings)
     visited = np.zeros_like(edge_binary, dtype=bool)
     crack_mask = np.zeros_like(edge_binary, dtype=bool)
     min_region_size = 20  # minimum pixels for a real opening
+    openings = []  # to store regions
 
     def flood_fill(y, x):
         stack = [(y, x)]
@@ -54,12 +55,12 @@ if uploaded_file is not None:
             if edge_binary[y, x] and not visited[y, x]:
                 pixels = flood_fill(y, x)
                 if len(pixels) >= min_region_size:
+                    openings.append(pixels)
                     for py, px in pixels:
                         crack_mask[py, px] = True
 
     crack_pixels = np.sum(crack_mask)
     crack_pixel_threshold = 200
-
     draw = ImageDraw.Draw(image_resized)
 
     if crack_pixels > crack_pixel_threshold:
@@ -80,13 +81,18 @@ if uploaded_file is not None:
 
         st.subheader("Detected Openings Overlay")
         st.image(image_resized, use_container_width=True)
-        st.subheader("Inspection Result")
+
+        # Inspection Report
+        st.subheader("Inspection Report")
         st.success("True Crack/Openings Detected")
-        st.write("Opening Pixel Count:", crack_pixels)
+        st.write(f"Total Openings Detected: {len(openings)}")
+        st.write(f"Total Opening Pixel Count: {crack_pixels}")
+        st.write("Recommended Action: Maintenance inspection and repair if required.")
+
     else:
         st.subheader("Inspection Result")
         st.info("No True Crack/Openings Detected")
-        st.write("Opening Pixel Count:", crack_pixels)
+        st.write(f"Total Opening Pixel Count: {crack_pixels}")
 
     # Download processed image
     buffer = io.BytesIO()
