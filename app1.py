@@ -3,15 +3,15 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("AI Infrastructure Crack Detection System")
-st.write("Upload a pipeline or concrete surface image to detect cracks.")
+st.title("AI Pipeline & Concrete Opening Detector")
+st.write("Upload a pipeline or concrete image. The app will detect true cracks/openings, ignoring scratches or thin lines.")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
 if uploaded_file is not None:
     image = Image.open(uploaded_file).convert("RGB")
 
-    # Resize for faster mobile processing
+    # Resize for mobile-friendly processing
     max_width = 600
     w_percent = max_width / float(image.width)
     new_height = int(float(image.height) * w_percent)
@@ -19,40 +19,53 @@ if uploaded_file is not None:
 
     gray = image_resized.convert("L")
 
-    # Enhance contrast
+    # Enhance contrast to highlight real openings
     enhancer = ImageEnhance.Contrast(gray)
-    gray_enhanced = enhancer.enhance(2.0)
+    gray_enhanced = enhancer.enhance(2.5)
 
-    # Convert to numpy array
+    # Convert to NumPy array
     img_array = np.array(gray_enhanced, dtype=float)
 
-    # Simple smoothing using 3x3 average filter (vectorized)
-    kernel_size = 3
-    pad = kernel_size // 2
-    padded = np.pad(img_array, pad, mode='edge')
-    smoothed = (
-        padded[:-2, :-2] + padded[:-2, 1:-1] + padded[:-2, 2:] +
-        padded[1:-1, :-2] + padded[1:-1, 1:-1] + padded[1:-1, 2:] +
-        padded[2:, :-2] + padded[2:, 1:-1] + padded[2:, 2:]
-    ) / 9.0
+    # Edge detection using Pillow
+    edges = gray_enhanced.filter(ImageFilter.FIND_EDGES)
+    edge_array = np.array(edges)
 
-    # Subtract smoothed image to get local contrast
-    edges = img_array - smoothed
-    edges[edges < 0] = 0
+    # Threshold edges
+    threshold = np.percentile(edge_array, 92)  # focus on strongest edges
+    edge_binary = edge_array > threshold
 
-    # Threshold based on percentile
-    threshold = np.percentile(edges, 95)
-    edge_binary = edges > threshold
+    # Filter out thin lines: ignore regions smaller than min_length
+    min_length = 10  # minimum consecutive pixels for true opening
+    height, width = edge_binary.shape
+    crack_mask = np.zeros_like(edge_binary, dtype=bool)
 
-    crack_pixels = np.sum(edge_binary)
-    crack_pixel_threshold = 500  # smaller for subtle cracks
+    for y in range(height):
+        x_positions = np.where(edge_binary[y, :])[0]
+        if len(x_positions) == 0:
+            continue
+        start = x_positions[0]
+        prev = x_positions[0]
+        for x in x_positions[1:]:
+            if x == prev + 1:
+                prev = x
+            else:
+                if prev - start + 1 >= min_length:
+                    crack_mask[y, start:prev+1] = True
+                start = x
+                prev = x
+        # Last segment
+        if prev - start + 1 >= min_length:
+            crack_mask[y, start:prev+1] = True
+
+    crack_pixels = np.sum(crack_mask)
+    crack_pixel_threshold = 500  # adjust for subtle openings
 
     draw = ImageDraw.Draw(image_resized)
 
     if crack_pixels > crack_pixel_threshold:
-        height, width = edge_binary.shape
+        # Draw solid red lines along true openings
         for y in range(height):
-            x_positions = np.where(edge_binary[y, :])[0]
+            x_positions = np.where(crack_mask[y, :])[0]
             if len(x_positions) > 0:
                 start = x_positions[0]
                 prev = x_positions[0]
@@ -65,30 +78,24 @@ if uploaded_file is not None:
                         prev = x
                 draw.line((start, y, prev, y), fill="red", width=2)
 
-        severity = "Low"
-        if crack_pixels > 3000:
-            severity = "Moderate"
-        if crack_pixels > 10000:
-            severity = "Severe"
-
-        st.subheader("Detected Crack Overlay")
+        st.subheader("Detected Openings Overlay")
         st.image(image_resized, use_container_width=True)
+
         st.subheader("Inspection Result")
-        st.success("Surface Crack Detected")
-        st.write("Severity Level:", severity)
-        st.write("Crack Pixel Count:", crack_pixels)
+        st.success("True Crack/Openings Detected")
+        st.write("Opening Pixel Count:", crack_pixels)
     else:
         st.subheader("Inspection Result")
-        st.info("No Crack Detected on Surface")
-        st.write("Crack Pixel Count:", crack_pixels)
+        st.info("No True Crack/Openings Detected")
+        st.write("Opening Pixel Count:", crack_pixels)
 
-    # Download full-size processed image
+    # Download processed image
     buffer = io.BytesIO()
-    image.save(buffer, format="PNG")  # full resolution
+    image_resized.save(buffer, format="PNG")
     buffer.seek(0)
     st.download_button(
-        label="Download Full-Resolution Processed Image",
+        label="Download Processed Image",
         data=buffer,
-        file_name="crack_detection_result.png",
+        file_name="opening_detection_result.png",
         mime="image/png"
     )
