@@ -3,7 +3,7 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("Infrastructure Crack/Openings Detector System")
+st.title("Infrastructure Crack Detector System")
 st.write("Highlights real openings on pipes/concrete surfaces and shows severity level.")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
