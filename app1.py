@@ -3,8 +3,8 @@ import numpy as np
 from PIL import Image, ImageFilter, ImageDraw, ImageEnhance
 import io
 
-st.title("Infrastructure Crack Detection & Measurement System")
-st.write("Highlights real openings on pipes/concrete surfaces and measures their size in pixels.")
+st.title("Phone-Friendly Crack/Openings Detector")
+st.write("Highlights only real openings on pipes or concrete surfaces without external dependencies.")
 
 uploaded_file = st.file_uploader("Upload Image", type=["jpg","png","jpeg"])
 
@@ -32,7 +32,7 @@ if uploaded_file is not None:
     visited = np.zeros_like(edge_binary, dtype=bool)
     crack_mask = np.zeros_like(edge_binary, dtype=bool)
     min_region_size = 20  # minimum pixels for a real opening
-    openings = []  # store detected regions
+    openings = []  # to store regions
 
     def flood_fill(y, x):
         stack = [(y, x)]
@@ -45,6 +45,7 @@ if uploaded_file is not None:
                 continue
             visited[cy, cx] = True
             region_pixels.append((cy, cx))
+            # Check 4 neighbors
             stack.extend([(cy-1, cx), (cy+1, cx), (cy, cx-1), (cy, cx+1)])
         return region_pixels
 
@@ -63,28 +64,27 @@ if uploaded_file is not None:
     draw = ImageDraw.Draw(image_resized)
 
     if crack_pixels > crack_pixel_threshold:
+        # Draw solid red lines along detected openings
+        for y in range(height):
+            x_positions = np.where(crack_mask[y, :])[0]
+            if len(x_positions) > 0:
+                start = x_positions[0]
+                prev = x_positions[0]
+                for x in x_positions[1:]:
+                    if x == prev + 1:
+                        prev = x
+                    else:
+                        draw.line((start, y, prev, y), fill="red", width=3)
+                        start = x
+                        prev = x
+                draw.line((start, y, prev, y), fill="red", width=3)
+
         st.subheader("Detected Openings Overlay")
-
-        # Draw bounding boxes and measure each opening
-        opening_measurements = []
-        for region in openings:
-            ys = [p[0] for p in region]
-            xs = [p[1] for p in region]
-            min_x, max_x = min(xs), max(xs)
-            min_y, max_y = min(ys), max(ys)
-            width_pixels = max_x - min_x + 1
-            height_pixels = max_y - min_y + 1
-            opening_measurements.append((width_pixels, height_pixels))
-            draw.rectangle([min_x, min_y, max_x, max_y], outline="red", width=3)
-
         st.image(image_resized, use_container_width=True)
 
         # Inspection Report
         st.subheader("Inspection Report")
         st.success("True Crack/Openings Detected")
-        st.write(f"Total Openings Detected: {len(openings)}")
-        for i, (w, h) in enumerate(opening_measurements, 1):
-            st.write(f"Opening {i}: Width = {w}px, Height = {h}px")
         st.write("Recommended Action: Maintenance inspection and repair required.")
 
     else:
@@ -99,6 +99,6 @@ if uploaded_file is not None:
     st.download_button(
         label="Download Processed Image",
         data=buffer,
-        file_name="opening_detection_with_measurements.png",
+        file_name="phone_friendly_opening_detection.png",
         mime="image/png"
     )
