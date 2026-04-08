@@ -2,7 +2,6 @@ import streamlit as st
 import numpy as np
 from PIL import Image, ImageFilter, ImageDraw
 import io
-from scipy.ndimage import binary_dilation, label
 
 st.title("AI Infrastructure Crack Detection System")
 st.write("Upload an image of a pipeline or concrete surface to detect cracks.")
@@ -17,23 +16,17 @@ if uploaded_file is not None:
     edges = gray.filter(ImageFilter.FIND_EDGES)
     edge_array = np.array(edges)
 
-    # Threshold strong edges
     threshold_pixel = 60
     edge_binary = edge_array > threshold_pixel
 
-    # Optional: make crack lines thicker
-    edge_binary = binary_dilation(edge_binary, structure=np.ones((2,2)))
-
-    # Label connected crack segments
-    labeled_array, num_features = label(edge_binary)
+    # Count crack pixels
     crack_pixels = np.sum(edge_binary)
-
-    crack_pixel_threshold = 2000  # min pixels to consider a real crack
+    crack_pixel_threshold = 2000  # minimum pixels to consider a real crack
 
     draw = ImageDraw.Draw(image)
 
-    if crack_pixels > crack_pixel_threshold and num_features > 0:
-        # Draw solid red lines along cracks
+    if crack_pixels > crack_pixel_threshold:
+        # Draw solid red lines along crack pixels
         ys, xs = np.where(edge_binary)
         for y, x in zip(ys, xs):
             draw.line((x, y, x+1, y+1), fill="red", width=2)
@@ -52,7 +45,6 @@ if uploaded_file is not None:
         st.success("Surface Crack Detected")
         st.write("Severity Level:", severity)
         st.write("Crack Pixel Count:", crack_pixels)
-        st.write("Number of Crack Segments:", num_features)
 
         st.subheader("Inspection Report")
         st.write("""
